@@ -39,6 +39,7 @@ client.messageTracker = new Collection()
 client.warnings = new Collection()
 client.levels = new Collection()
 client.processedMessages = new Set()
+client.levelUpCooldown = new Set()
 
 // Load commands
 const commandsPath = join(__dirname, "commands")
@@ -78,8 +79,10 @@ client.on("messageCreate", async (message) => {
   // Ignore bots
   if (message.author.bot) return
 
-  // Prevent duplicate processing
-  if (client.processedMessages.has(message.id)) return
+  if (client.processedMessages.has(message.id)) {
+    console.log("[v0] Duplicate message detected, skipping:", message.id)
+    return
+  }
   client.processedMessages.add(message.id)
   setTimeout(() => client.processedMessages.delete(message.id), 10000)
 
@@ -102,8 +105,17 @@ client.on("messageCreate", async (message) => {
     const newLevel = Math.floor(userData.xp / 100) + 1
 
     if (newLevel > userData.level) {
-      userData.level = newLevel
-      message.reply(`🎉 You leveled up to level **${newLevel}**!`).catch(() => {})
+      const levelUpKey = `${userId}-${newLevel}`
+
+      if (!client.levelUpCooldown.has(levelUpKey)) {
+        userData.level = newLevel
+        client.levelUpCooldown.add(levelUpKey)
+
+        message.reply(`🎉 You leveled up to level **${newLevel}**!`).catch(() => {})
+
+        // Remove from cooldown after 5 seconds
+        setTimeout(() => client.levelUpCooldown.delete(levelUpKey), 5000)
+      }
     }
 
     client.levels.set(userId, userData)
