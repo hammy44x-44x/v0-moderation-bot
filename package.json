@@ -16,6 +16,8 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@radix-ui/react-label": "latest",
+    "@radix-ui/react-slot": "latest",
     "@vercel/analytics": "latest",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -25,6 +27,7 @@
     "geist": "latest",
     "lucide-react": "^0.454.0",
     "next": "15.2.4",
+    "next-themes": "latest",
     "path": "latest",
     "react": "^19",
     "react-dom": "^19",
