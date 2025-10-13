@@ -6,6 +6,7 @@ import { fileURLToPath } from "url"
 
 config()
 
+// Validate environment
 console.log("🔍 Checking environment variables...")
 if (!process.env.DISCORD_TOKEN) {
   console.error("❌ ERROR: DISCORD_TOKEN is not set in .env file!")
@@ -16,11 +17,11 @@ if (!process.env.DISCORD_TOKEN) {
 
 const tokenPreview = process.env.DISCORD_TOKEN.substring(0, 30) + "..."
 console.log("✅ Token loaded:", tokenPreview)
-console.log("📏 Token length:", process.env.DISCORD_TOKEN.length)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
+// Initialize client
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -31,17 +32,11 @@ const client = new Client({
   ],
 })
 
-// Collections for commands and cooldowns
+// Initialize collections
 client.commands = new Collection()
 client.cooldowns = new Collection()
-
-// User message tracking for spam detection
 client.messageTracker = new Collection()
-
-// Warning system
 client.warnings = new Collection()
-
-// Level system and message deduplication
 client.levels = new Collection()
 client.processedMessages = new Set()
 
@@ -49,6 +44,7 @@ client.processedMessages = new Set()
 const commandsPath = join(__dirname, "commands")
 const commandFolders = readdirSync(commandsPath)
 
+console.log("📂 Loading commands...")
 for (const folder of commandFolders) {
   const folderPath = join(commandsPath, folder)
   const commandFiles = readdirSync(folderPath).filter((file) => file.endsWith(".js"))
@@ -59,67 +55,68 @@ for (const folder of commandFolders) {
 
     if ("name" in command.default && "execute" in command.default) {
       client.commands.set(command.default.name, command.default)
+      console.log(`  ✓ Loaded: ${command.default.name}`)
     }
   }
 }
 
+// Ready event
 client.once("ready", () => {
-  console.log(`✅ Bot is online as ${client.user.tag}`)
+  console.log(`\n✅ Bot is online as ${client.user.tag}`)
   console.log(`🎮 Serving ${client.guilds.cache.size} server(s)`)
   console.log(`👥 Watching ${client.users.cache.size} user(s)`)
+  console.log(`📝 Loaded ${client.commands.size} commands\n`)
+
   client.user.setPresence({
     activities: [{ name: "!help for commands", type: ActivityType.Watching }],
     status: "online",
   })
 })
 
+// Message handler
 client.on("messageCreate", async (message) => {
-  // Ignore bot messages
+  // Ignore bots
   if (message.author.bot) return
 
+  // Prevent duplicate processing
   if (client.processedMessages.has(message.id)) return
   client.processedMessages.add(message.id)
-
   setTimeout(() => client.processedMessages.delete(message.id), 10000)
 
   const now = Date.now()
   const userId = message.author.id
 
+  // XP System - runs for all messages
   if (!client.levels.has(userId)) {
     client.levels.set(userId, { xp: 0, level: 1, lastMessage: 0 })
   }
 
   const userData = client.levels.get(userId)
 
-  // Cooldown: only gain XP once per minute
+  // Award XP (once per minute)
   if (now - userData.lastMessage > 60000) {
-    const xpGain = Math.floor(Math.random() * 11) + 15 // 15-25 XP
+    const xpGain = Math.floor(Math.random() * 11) + 15
     userData.xp += xpGain
     userData.lastMessage = now
 
-    // Calculate level (100 XP per level)
     const newLevel = Math.floor(userData.xp / 100) + 1
 
     if (newLevel > userData.level) {
       userData.level = newLevel
-      message.reply(`🎉 You leveled up to level **${newLevel}**!`).catch(console.error)
+      message.reply(`🎉 You leveled up to level **${newLevel}**!`).catch(() => {})
     }
 
     client.levels.set(userId, userData)
   }
 
-  // Check for cap abuse
+  // Cap abuse detection
   if (message.content.length > 10) {
     const capsCount = (message.content.match(/[A-Z]/g) || []).length
     const capsPercentage = (capsCount / message.content.length) * 100
 
     if (capsPercentage > 70) {
-      try {
-        await message.delete()
-        await message.channel.send(`${message.author}, please don't abuse caps lock! 🚫`)
-      } catch (error) {
-        console.error("Error handling cap abuse:", error)
-      }
+      await message.delete().catch(() => {})
+      await message.channel.send(`${message.author}, please don't abuse caps lock! 🚫`).catch(() => {})
       return
     }
   }
@@ -132,23 +129,17 @@ client.on("messageCreate", async (message) => {
   const userMessages = client.messageTracker.get(userId)
   userMessages.push(now)
 
-  // Remove messages older than 5 seconds
   const recentMessages = userMessages.filter((timestamp) => now - timestamp < 5000)
   client.messageTracker.set(userId, recentMessages)
 
-  // If more than 5 messages in 5 seconds, it's spam
   if (recentMessages.length > 5) {
-    try {
-      await message.delete()
-      const member = message.guild.members.cache.get(userId)
+    await message.delete().catch(() => {})
 
-      if (member && !member.permissions.has(PermissionFlagsBits.Administrator)) {
-        await member.timeout(60000, "Spam detected")
-        await message.channel.send(`${message.author} has been timed out for 1 minute due to spam! 🚫`)
-        client.messageTracker.delete(userId)
-      }
-    } catch (error) {
-      console.error("Error handling spam:", error)
+    const member = message.guild.members.cache.get(userId)
+    if (member && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+      await member.timeout(60000, "Spam detected").catch(() => {})
+      await message.channel.send(`${message.author} has been timed out for 1 minute due to spam! 🚫`).catch(() => {})
+      client.messageTracker.delete(userId)
     }
     return
   }
@@ -164,7 +155,7 @@ client.on("messageCreate", async (message) => {
 
   if (!command) return
 
-  // Check permissions
+  // Permission check
   if (command.permissions) {
     const member = message.guild.members.cache.get(message.author.id)
     if (!member.permissions.has(command.permissions)) {
@@ -198,30 +189,24 @@ client.on("messageCreate", async (message) => {
   try {
     await command.execute(message, args, client)
   } catch (error) {
-    console.error(`Error executing command ${command.name}:`, error)
-    message.reply("❌ There was an error executing that command!")
+    console.error(`Error executing ${command.name}:`, error)
+    message.reply("❌ There was an error executing that command!").catch(() => {})
   }
 })
 
+// Login
 console.log("🔐 Attempting to login to Discord...")
 client
   .login(process.env.DISCORD_TOKEN.trim())
-  .then(() => {
-    console.log("✅ Login successful!")
-  })
+  .then(() => console.log("✅ Login successful!"))
   .catch((error) => {
     console.error("\n❌ Failed to login to Discord!")
-    console.error("Error code:", error.code)
-    console.error("Error message:", error.message)
-    console.error("\n🔧 Troubleshooting steps:")
+    console.error("Error:", error.message)
+    console.error("\n🔧 Troubleshooting:")
     console.error("1. Go to https://discord.com/developers/applications")
-    console.error("2. Select your bot application")
-    console.error("3. Go to 'Bot' section")
-    console.error("4. Click 'Reset Token' and copy the NEW token")
-    console.error("5. Replace the token in your .env file")
-    console.error("6. Make sure these intents are enabled:")
-    console.error("   - Server Members Intent")
-    console.error("   - Message Content Intent")
-    console.error("\n💡 Your current token starts with:", tokenPreview)
+    console.error("2. Select your bot → Bot section")
+    console.error("3. Click 'Reset Token' and copy the new token")
+    console.error("4. Replace token in .env file")
+    console.error("5. Enable: Server Members Intent & Message Content Intent")
     process.exit(1)
   })
