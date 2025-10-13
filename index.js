@@ -41,6 +41,8 @@ client.messageTracker = new Collection()
 // Warning system
 client.warnings = new Collection()
 
+client.levels = new Collection()
+
 // Load commands
 const commandsPath = join(__dirname, "commands")
 const commandFolders = readdirSync(commandsPath)
@@ -75,6 +77,29 @@ client.on("messageCreate", async (message) => {
 
   const now = Date.now()
   const userId = message.author.id
+
+  if (!client.levels.has(userId)) {
+    client.levels.set(userId, { xp: 0, level: 1, lastMessage: 0 })
+  }
+
+  const userData = client.levels.get(userId)
+
+  // Cooldown: only gain XP once per minute
+  if (now - userData.lastMessage > 60000) {
+    const xpGain = Math.floor(Math.random() * 11) + 15 // 15-25 XP
+    userData.xp += xpGain
+    userData.lastMessage = now
+
+    // Calculate level (100 XP per level)
+    const newLevel = Math.floor(userData.xp / 100) + 1
+
+    if (newLevel > userData.level) {
+      userData.level = newLevel
+      message.channel.send(`🎉 ${message.author}, you leveled up to level **${newLevel}**!`)
+    }
+
+    client.levels.set(userId, userData)
+  }
 
   // Check for cap abuse
   if (message.content.length > 10) {
