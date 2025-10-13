@@ -1,10 +1,22 @@
-import { Client, GatewayIntentBits, Collection, PermissionFlagsBits } from "discord.js"
+import { Client, GatewayIntentBits, Collection, PermissionFlagsBits, ActivityType } from "discord.js"
 import { config } from "dotenv"
 import { readdirSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 
 config()
+
+console.log("🔍 Checking environment variables...")
+if (!process.env.DISCORD_TOKEN) {
+  console.error("❌ ERROR: DISCORD_TOKEN is not set in .env file!")
+  console.error("Please create a .env file with your bot token:")
+  console.error("DISCORD_TOKEN=your_token_here")
+  process.exit(1)
+}
+
+const tokenPreview = process.env.DISCORD_TOKEN.substring(0, 30) + "..."
+console.log("✅ Token loaded:", tokenPreview)
+console.log("📏 Token length:", process.env.DISCORD_TOKEN.length)
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -49,7 +61,12 @@ for (const folder of commandFolders) {
 
 client.once("ready", () => {
   console.log(`✅ Bot is online as ${client.user.tag}`)
-  client.user.setActivity("!help for commands", { type: "WATCHING" })
+  console.log(`🎮 Serving ${client.guilds.cache.size} server(s)`)
+  console.log(`👥 Watching ${client.users.cache.size} user(s)`)
+  client.user.setPresence({
+    activities: [{ name: "!help for commands", type: ActivityType.Watching }],
+    status: "online",
+  })
 })
 
 client.on("messageCreate", async (message) => {
@@ -154,22 +171,25 @@ client.on("messageCreate", async (message) => {
   }
 })
 
-// Validate token exists
-if (!process.env.DISCORD_TOKEN) {
-  console.error("❌ ERROR: DISCORD_TOKEN is not set in .env file!")
-  console.error("Please create a .env file with your bot token:")
-  console.error("DISCORD_TOKEN=your_token_here")
-  process.exit(1)
-}
-
-// Login with error handling
-client.login(process.env.DISCORD_TOKEN).catch((error) => {
-  console.error("❌ Failed to login to Discord!")
-  console.error("Error:", error.message)
-  console.error("\nPossible issues:")
-  console.error("1. Invalid bot token - regenerate it in Discord Developer Portal")
-  console.error("2. Bot token has expired")
-  console.error("3. Check your .env file format: DISCORD_TOKEN=your_token_here")
-  console.error("\nYour token starts with:", process.env.DISCORD_TOKEN.substring(0, 20) + "...")
-  process.exit(1)
-})
+console.log("🔐 Attempting to login to Discord...")
+client
+  .login(process.env.DISCORD_TOKEN.trim())
+  .then(() => {
+    console.log("✅ Login successful!")
+  })
+  .catch((error) => {
+    console.error("\n❌ Failed to login to Discord!")
+    console.error("Error code:", error.code)
+    console.error("Error message:", error.message)
+    console.error("\n🔧 Troubleshooting steps:")
+    console.error("1. Go to https://discord.com/developers/applications")
+    console.error("2. Select your bot application")
+    console.error("3. Go to 'Bot' section")
+    console.error("4. Click 'Reset Token' and copy the NEW token")
+    console.error("5. Replace the token in your .env file")
+    console.error("6. Make sure these intents are enabled:")
+    console.error("   - Server Members Intent")
+    console.error("   - Message Content Intent")
+    console.error("\n💡 Your current token starts with:", tokenPreview)
+    process.exit(1)
+  })
