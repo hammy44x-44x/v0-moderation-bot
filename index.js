@@ -41,7 +41,9 @@ client.messageTracker = new Collection()
 // Warning system
 client.warnings = new Collection()
 
+// Level system and message deduplication
 client.levels = new Collection()
+client.processedMessages = new Set()
 
 // Load commands
 const commandsPath = join(__dirname, "commands")
@@ -75,6 +77,11 @@ client.on("messageCreate", async (message) => {
   // Ignore bot messages
   if (message.author.bot) return
 
+  if (client.processedMessages.has(message.id)) return
+  client.processedMessages.add(message.id)
+
+  setTimeout(() => client.processedMessages.delete(message.id), 10000)
+
   const now = Date.now()
   const userId = message.author.id
 
@@ -95,7 +102,7 @@ client.on("messageCreate", async (message) => {
 
     if (newLevel > userData.level) {
       userData.level = newLevel
-      message.channel.send(`🎉 ${message.author}, you leveled up to level **${newLevel}**!`)
+      message.reply(`🎉 You leveled up to level **${newLevel}**!`).catch(console.error)
     }
 
     client.levels.set(userId, userData)
