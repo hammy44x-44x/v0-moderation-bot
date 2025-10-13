@@ -154,4 +154,22 @@ client.on("messageCreate", async (message) => {
   }
 })
 
-client.login(process.env.DISCORD_TOKEN)
+// Validate token exists
+if (!process.env.DISCORD_TOKEN) {
+  console.error("❌ ERROR: DISCORD_TOKEN is not set in .env file!")
+  console.error("Please create a .env file with your bot token:")
+  console.error("DISCORD_TOKEN=your_token_here")
+  process.exit(1)
+}
+
+// Login with error handling
+client.login(process.env.DISCORD_TOKEN).catch((error) => {
+  console.error("❌ Failed to login to Discord!")
+  console.error("Error:", error.message)
+  console.error("\nPossible issues:")
+  console.error("1. Invalid bot token - regenerate it in Discord Developer Portal")
+  console.error("2. Bot token has expired")
+  console.error("3. Check your .env file format: DISCORD_TOKEN=your_token_here")
+  console.error("\nYour token starts with:", process.env.DISCORD_TOKEN.substring(0, 20) + "...")
+  process.exit(1)
+})
