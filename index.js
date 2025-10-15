@@ -61,6 +61,20 @@ for (const folder of commandFolders) {
   }
 }
 
+const eventsPath = join(__dirname, "events")
+const eventFiles = readdirSync(eventsPath).filter((file) => file.endsWith(".js"))
+
+console.log("📅 Loading events...")
+for (const file of eventFiles) {
+  const filePath = join(eventsPath, file)
+  const event = await import(`file://${filePath}`)
+
+  if ("name" in event.default && "execute" in event.default) {
+    client.on(event.default.name, (...args) => event.default.execute(...args, client))
+    console.log(`  ✓ Loaded event: ${event.default.name}`)
+  }
+}
+
 // Ready event
 client.once("ready", () => {
   console.log(`\n✅ Bot is online as ${client.user.tag}`)
@@ -121,6 +135,64 @@ client.on("messageCreate", async (message) => {
     client.levels.set(userId, userData)
   }
 
+  // Staff ping protection system
+  const staffRoleNames = ["admin", "administrator", "mod", "moderator", "staff", "owner", "helper", "support"]
+  const member = message.guild.members.cache.get(userId)
+
+  // Skip check if user is staff themselves
+  const isStaff =
+    member &&
+    (member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+      member.permissions.has(PermissionFlagsBits.Administrator))
+
+  if (!isStaff && message.mentions.roles.size > 0) {
+    console.log(
+      "[v0] Role mentions detected:",
+      message.mentions.roles.map((r) => r.name),
+    )
+
+    // Check if any mentioned role is a staff role
+    const mentionedStaffRole = message.mentions.roles.find((role) => {
+      const roleName = role.name.toLowerCase()
+      const isStaffRole = staffRoleNames.some((staffName) => roleName.includes(staffName))
+      console.log(`[v0] Checking role "${role.name}": ${isStaffRole}`)
+      return isStaffRole
+    })
+
+    if (mentionedStaffRole) {
+      console.log("[v0] Staff role ping detected! Role:", mentionedStaffRole.name)
+
+      await message.delete().catch(() => {})
+
+      if (!client.warnings.has(userId)) {
+        client.warnings.set(userId, [])
+      }
+
+      const userWarnings = client.warnings.get(userId)
+      userWarnings.push({
+        moderator: "AutoMod",
+        reason: "Unauthorized staff ping",
+        timestamp: Date.now(),
+      })
+
+      await message.channel
+        .send(
+          `${message.author}, you have been warned for pinging staff unnecessarily! (Warning ${userWarnings.length}) 🚫`,
+        )
+        .catch(() => {})
+
+      try {
+        await message.author.send(
+          `⚠️ You have been warned in **${message.guild.name}**\n**Reason:** Unauthorized staff ping\n**Total Warnings:** ${userWarnings.length}\n\n💡 Please use proper channels to contact staff or wait for them to respond.`,
+        )
+      } catch (error) {
+        // User has DMs disabled
+      }
+
+      return
+    }
+  }
+
   // Cap abuse detection
   if (message.content.length > 10) {
     const capsCount = (message.content.match(/[A-Z]/g) || []).length
@@ -128,7 +200,31 @@ client.on("messageCreate", async (message) => {
 
     if (capsPercentage > 70) {
       await message.delete().catch(() => {})
-      await message.channel.send(`${message.author}, please don't abuse caps lock! 🚫`).catch(() => {})
+
+      if (!client.warnings.has(userId)) {
+        client.warnings.set(userId, [])
+      }
+
+      const userWarnings = client.warnings.get(userId)
+      userWarnings.push({
+        moderator: "AutoMod",
+        reason: "Cap abuse (excessive caps lock)",
+        timestamp: Date.now(),
+      })
+
+      await message.channel
+        .send(`${message.author}, you have been warned for cap abuse! (Warning ${userWarnings.length}) 🚫`)
+        .catch(() => {})
+
+      // Try to DM the user
+      try {
+        await message.author.send(
+          `⚠️ You have been warned in **${message.guild.name}**\n**Reason:** Cap abuse (excessive caps lock)\n**Total Warnings:** ${userWarnings.length}`,
+        )
+      } catch (error) {
+        // User has DMs disabled
+      }
+
       return
     }
   }

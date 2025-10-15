@@ -16,15 +16,15 @@ export default {
         .addFields(
           {
             name: "🛡️ Moderation",
-            value: "`!warn` `!kick` `!timeout` `!ban` `!warnings`",
+            value: "`!warn` `!kick` `!timeout` `!ban` `!warnings` `!setxp`",
           },
           {
             name: "🎮 Fun",
-            value: "`!8ball` `!roll` `!coinflip` `!joke` `!meme`",
+            value: "`!8ball` `!roll` `!coinflip` `!joke` `!meme` `!say` `!riz` `!poll`",
           },
           {
             name: "⚙️ Utility",
-            value: "`!help` `!ping` `!serverinfo` `!userinfo`",
+            value: "`!help` `!ping` `!serverinfo` `!userinfo` `!rank` `!leaderboard`",
           },
         )
         .setFooter({ text: "Use !help <command> for more info on a command" })
@@ -54,6 +54,6 @@ export default {
       embed.addFields({ name: "Cooldown", value: `${command.cooldown} seconds` })
     }
 
-    await message.channel.send({ embeds: [embed] })
+    return message.channel.send({ embeds: [embed] })
   },
 }
