@@ -1,6 +1,6 @@
 import { Client, GatewayIntentBits, Collection, PermissionFlagsBits, ActivityType } from "discord.js"
 import { config } from "dotenv"
-import { readdirSync } from "fs"
+import { readdirSync, readFileSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 
@@ -41,6 +41,17 @@ client.levels = new Collection()
 client.processedMessages = new Set()
 client.levelUpCooldown = new Set()
 
+let blockedWordsConfig = { blockedWords: [], blockedPatterns: [] }
+try {
+  const configPath = join(__dirname, "config", "blocked-words.json")
+  blockedWordsConfig = JSON.parse(readFileSync(configPath, "utf-8"))
+  console.log(
+    `🛡️ Loaded ${blockedWordsConfig.blockedWords.length} blocked words and ${blockedWordsConfig.blockedPatterns.length} patterns`,
+  )
+} catch (error) {
+  console.warn("⚠️ Could not load blocked words config, word filter disabled")
+}
+
 // Load commands
 const commandsPath = join(__dirname, "commands")
 const commandFolders = readdirSync(commandsPath)
@@ -58,20 +69,6 @@ for (const folder of commandFolders) {
       client.commands.set(command.default.name, command.default)
       console.log(`  ✓ Loaded: ${command.default.name}`)
     }
-  }
-}
-
-const eventsPath = join(__dirname, "events")
-const eventFiles = readdirSync(eventsPath).filter((file) => file.endsWith(".js"))
-
-console.log("📅 Loading events...")
-for (const file of eventFiles) {
-  const filePath = join(eventsPath, file)
-  const event = await import(`file://${filePath}`)
-
-  if ("name" in event.default && "execute" in event.default) {
-    client.on(event.default.name, (...args) => event.default.execute(...args, client))
-    console.log(`  ✓ Loaded event: ${event.default.name}`)
   }
 }
 
@@ -94,7 +91,6 @@ client.on("messageCreate", async (message) => {
   if (message.author.bot) return
 
   if (client.processedMessages.has(message.id)) {
-    console.log("[v0] Duplicate message detected, skipping:", message.id)
     return
   }
   client.processedMessages.add(message.id)
@@ -102,6 +98,69 @@ client.on("messageCreate", async (message) => {
 
   const now = Date.now()
   const userId = message.author.id
+
+  if (blockedWordsConfig.blockedWords.length > 0 || blockedWordsConfig.blockedPatterns.length > 0) {
+    const messageContent = message.content.toLowerCase()
+    let containsBlockedWord = false
+    let matchedWord = ""
+
+    // Check against blocked words list
+    for (const word of blockedWordsConfig.blockedWords) {
+      const cleanWord = word.replace(/\*/g, "").toLowerCase()
+      if (messageContent.includes(cleanWord)) {
+        containsBlockedWord = true
+        matchedWord = word
+        break
+      }
+    }
+
+    // Check against regex patterns
+    if (!containsBlockedWord) {
+      for (const pattern of blockedWordsConfig.blockedPatterns) {
+        try {
+          const regex = new RegExp(pattern, "i")
+          if (regex.test(messageContent)) {
+            containsBlockedWord = true
+            matchedWord = "inappropriate content"
+            break
+          }
+        } catch (error) {
+          console.error("Invalid regex pattern:", pattern)
+        }
+      }
+    }
+
+    if (containsBlockedWord) {
+      await message.delete().catch(() => {})
+
+      if (!client.warnings.has(userId)) {
+        client.warnings.set(userId, [])
+      }
+
+      const userWarnings = client.warnings.get(userId)
+      userWarnings.push({
+        moderator: "AutoMod",
+        reason: "Use of prohibited language",
+        timestamp: Date.now(),
+      })
+
+      await message.channel
+        .send(
+          `${message.author}, your message was removed for containing prohibited language! You have been warned. (Warning ${userWarnings.length}) 🚫`,
+        )
+        .catch(() => {})
+
+      try {
+        await message.author.send(
+          `⚠️ You have been warned in **${message.guild.name}**\n**Reason:** Use of prohibited language\n**Total Warnings:** ${userWarnings.length}\n\n💡 Please keep the server appropriate and respectful.`,
+        )
+      } catch (error) {
+        // User has DMs disabled
+      }
+
+      return
+    }
+  }
 
   // XP System - runs for all messages
   if (!client.levels.has(userId)) {
@@ -146,22 +205,13 @@ client.on("messageCreate", async (message) => {
       member.permissions.has(PermissionFlagsBits.Administrator))
 
   if (!isStaff && message.mentions.roles.size > 0) {
-    console.log(
-      "[v0] Role mentions detected:",
-      message.mentions.roles.map((r) => r.name),
-    )
-
     // Check if any mentioned role is a staff role
     const mentionedStaffRole = message.mentions.roles.find((role) => {
       const roleName = role.name.toLowerCase()
-      const isStaffRole = staffRoleNames.some((staffName) => roleName.includes(staffName))
-      console.log(`[v0] Checking role "${role.name}": ${isStaffRole}`)
-      return isStaffRole
+      return staffRoleNames.some((staffName) => roleName.includes(staffName))
     })
 
     if (mentionedStaffRole) {
-      console.log("[v0] Staff role ping detected! Role:", mentionedStaffRole.name)
-
       await message.delete().catch(() => {})
 
       if (!client.warnings.has(userId)) {

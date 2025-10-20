@@ -1,0 +1,28 @@
+{
+  "blockedWords": [
+    "n*gger",
+    "n*gga",
+    "f*ggot",
+    "f*g",
+    "r*tard",
+    "tr*nny",
+    "ch*nk",
+    "sp*c",
+    "k*ke",
+    "c*nt",
+    "p*do",
+    "pedoph*le",
+    "ch*ld p*rn",
+    "cp",
+    "loli",
+    "shota"
+  ],
+  "blockedPatterns": [
+    "n[i1!]gg[e3]r",
+    "n[i1!]gg[a4@]",
+    "f[a4@]gg[o0]t",
+    "r[e3]t[a4@]rd",
+    "p[e3]d[o0]",
+    "ch[i1!]ld\\s*p[o0]rn"
+  ]
+}
