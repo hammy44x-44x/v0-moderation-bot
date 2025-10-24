@@ -1,0 +1,53 @@
+{
+  "items": [
+    {
+      "id": "coffee",
+      "name": "☕ Coffee",
+      "description": "A hot cup of coffee to boost your energy",
+      "price": 50,
+      "type": "consumable"
+    },
+    {
+      "id": "pizza",
+      "name": "🍕 Pizza",
+      "description": "Delicious pizza slice",
+      "price": 100,
+      "type": "consumable"
+    },
+    {
+      "id": "trophy",
+      "name": "🏆 Trophy",
+      "description": "A shiny trophy to show off",
+      "price": 500,
+      "type": "collectible"
+    },
+    {
+      "id": "crown",
+      "name": "👑 Crown",
+      "description": "Become royalty with this crown",
+      "price": 1000,
+      "type": "collectible"
+    },
+    {
+      "id": "car",
+      "name": "🚗 Car",
+      "description": "A fancy sports car",
+      "price": 5000,
+      "type": "collectible"
+    },
+    {
+      "id": "mansion",
+      "name": "🏰 Mansion",
+      "description": "A luxurious mansion",
+      "price": 50000,
+      "type": "collectible"
+    },
+    {
+      "id": "rocket",
+      "name": "🚀 Rocket",
+      "description": "Your own personal rocket ship",
+      "price": 100000,
+      "type": "collectible"
+    }
+  ]
+}

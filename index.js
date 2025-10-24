@@ -40,6 +40,7 @@ client.warnings = new Collection()
 client.levels = new Collection()
 client.processedMessages = new Set()
 client.levelUpCooldown = new Set()
+client.economy = new Collection()
 
 let blockedWordsConfig = { blockedWords: [], blockedPatterns: [] }
 try {
@@ -101,7 +102,7 @@ client.on("messageCreate", async (message) => {
 
   if (blockedWordsConfig.blockedWords.length > 0 || blockedWordsConfig.blockedPatterns.length > 0) {
     const messageContent = message.content.toLowerCase()
-    let containsBlockedWord = false
+    let containsBlockedWord = true
     let matchedWord = ""
 
     // Check against blocked words list
