@@ -1,11 +1,20 @@
 import { PermissionFlagsBits, EmbedBuilder } from "discord.js"
 
+const ALLOWED_USERS = [
+  "YOUR_USER_ID_HERE", // Replace with your Discord user ID
+  // Add more user IDs here as needed
+]
+
 export default {
   name: "setxp",
   description: "Set a user's XP",
   permissions: PermissionFlagsBits.ModerateMembers,
   usage: "!setxp @user <amount>",
   async execute(message, args, client) {
+    if (!ALLOWED_USERS.includes(message.author.id)) {
+      return message.reply("❌ You don't have permission to use this command!")
+    }
+
     const user = message.mentions.users.first()
 
     if (!user) {

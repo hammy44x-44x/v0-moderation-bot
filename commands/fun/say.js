@@ -1,5 +1,7 @@
-import fs from "fs"
-import path from "path"
+const ALLOWED_USERS = [
+  "YOUR_USER_ID_HERE", // Replace with your Discord user ID
+  // Add more user IDs here as needed
+]
 
 export default {
   name: "say",
@@ -7,18 +9,7 @@ export default {
   usage: "!say <message>",
   cooldown: 3,
   async execute(message, args) {
-    const permissionsPath = path.join(process.cwd(), "config", "permissions.json")
-    let allowedUsers = []
-
-    try {
-      const data = fs.readFileSync(permissionsPath, "utf8")
-      const permissions = JSON.parse(data)
-      allowedUsers = permissions.allowedSayUsers || []
-    } catch (error) {
-      console.log("Could not load permissions:", error.message)
-    }
-
-    if (!allowedUsers.includes(message.author.id)) {
+    if (!ALLOWED_USERS.includes(message.author.id)) {
       return message.reply("❌ You don't have permission to use this command!")
     }
 
