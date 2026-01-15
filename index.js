@@ -41,6 +41,7 @@ client.levels = new Collection()
 client.processedMessages = new Set()
 client.levelUpCooldown = new Set()
 client.economy = new Collection()
+client.afkUsers = new Map()
 
 let blockedWordsConfig = { blockedWords: [], blockedPatterns: [] }
 try {
@@ -91,14 +92,90 @@ client.on("messageCreate", async (message) => {
   // Ignore bots
   if (message.author.bot) return
 
+  const now = Date.now()
+  const userId = message.author.id
+
+  const member = message.guild.members.cache.get(userId)
+  const isStaffMember =
+    member &&
+    (member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+      member.permissions.has(PermissionFlagsBits.Administrator) ||
+      member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      member.permissions.has(PermissionFlagsBits.KickMembers) ||
+      member.permissions.has(PermissionFlagsBits.BanMembers))
+
+  const startsWithPrefix = message.content.startsWith("!") // Declare startsWithPrefix variable
+
   if (client.processedMessages.has(message.id)) {
     return
   }
   client.processedMessages.add(message.id)
   setTimeout(() => client.processedMessages.delete(message.id), 10000)
 
-  const now = Date.now()
-  const userId = message.author.id
+  if (client.afkUsers.has(userId)) {
+    const afkData = client.afkUsers.get(userId)
+    client.afkUsers.delete(userId)
+
+    const afkDuration = Math.floor((now - afkData.timestamp) / 1000)
+    const minutes = Math.floor(afkDuration / 60)
+    const seconds = afkDuration % 60
+
+    let timeString = ""
+    if (minutes > 0) {
+      timeString = `${minutes}m ${seconds}s`
+    } else {
+      timeString = `${seconds}s`
+    }
+
+    await message
+      .reply(`👋 Welcome back! You were AFK for **${timeString}**`)
+      .then((msg) => setTimeout(() => msg.delete().catch(() => {}), 5000))
+      .catch(() => {})
+  }
+
+  if (message.mentions.users.size > 0) {
+    for (const [mentionedUserId, mentionedUser] of message.mentions.users) {
+      if (client.afkUsers.has(mentionedUserId)) {
+        const afkData = client.afkUsers.get(mentionedUserId)
+        const afkDuration = Math.floor((now - afkData.timestamp) / 1000)
+        const minutes = Math.floor(afkDuration / 60)
+
+        let timeString = ""
+        if (minutes > 0) {
+          timeString = `${minutes} minute(s) ago`
+        } else {
+          timeString = "just now"
+        }
+
+        await message
+          .reply(`💤 ${mentionedUser.tag} is currently AFK: **${afkData.reason}** (${timeString})`)
+          .then((msg) => setTimeout(() => msg.delete().catch(() => {}), 10000))
+          .catch(() => {})
+        break
+      }
+    }
+  }
+
+  if (isStaffMember && startsWithPrefix && message.content.length > 1) {
+    const logChannel = message.guild.channels.cache.find((ch) => ch.name === "admin-logs" || ch.name === "mod-logs")
+
+    if (logChannel) {
+      const { EmbedBuilder } = await import("discord.js")
+      const logEmbed = new EmbedBuilder()
+        .setColor("#FFA500")
+        .setTitle("🔧 Staff Command Used")
+        .setDescription(`**${message.author.tag}** used a command`)
+        .addFields(
+          { name: "User", value: `${message.author} (${message.author.id})`, inline: true },
+          { name: "Channel", value: `${message.channel}`, inline: true },
+          { name: "Command", value: `\`${message.content}\``, inline: false },
+        )
+        .setTimestamp()
+        .setFooter({ text: `User ID: ${message.author.id}` })
+
+      await logChannel.send({ embeds: [logEmbed] }).catch(() => {})
+    }
+  }
 
   if (blockedWordsConfig.blockedWords.length > 0 || blockedWordsConfig.blockedPatterns.length > 0) {
     const messageContent = message.content.toLowerCase()
@@ -197,7 +274,6 @@ client.on("messageCreate", async (message) => {
 
   // Staff ping protection system
   const staffRoleNames = ["admin", "administrator", "mod", "moderator", "staff", "owner", "helper", "support"]
-  const member = message.guild.members.cache.get(userId)
 
   // Skip check if user is staff themselves
   const isStaff =
@@ -232,6 +308,7 @@ client.on("messageCreate", async (message) => {
         )
         .catch(() => {})
 
+      // Try to DM the user
       try {
         await message.author.send(
           `⚠️ You have been warned in **${message.guild.name}**\n**Reason:** Unauthorized staff ping\n**Total Warnings:** ${userWarnings.length}\n\n💡 Please use proper channels to contact staff or wait for them to respond.`,
@@ -294,17 +371,41 @@ client.on("messageCreate", async (message) => {
   if (recentMessages.length > 5) {
     await message.delete().catch(() => {})
 
-    const member = message.guild.members.cache.get(userId)
-    if (member && !member.permissions.has(PermissionFlagsBits.Administrator)) {
+    if (!member.permissions.has(PermissionFlagsBits.Administrator)) {
+      if (!client.warnings.has(userId)) {
+        client.warnings.set(userId, [])
+      }
+
+      const userWarnings = client.warnings.get(userId)
+      userWarnings.push({
+        moderator: "AutoMod",
+        reason: "Spam (5+ messages in 5 seconds)",
+        timestamp: Date.now(),
+      })
+
       await member.timeout(60000, "Spam detected").catch(() => {})
-      await message.channel.send(`${message.author} has been timed out for 1 minute due to spam! 🚫`).catch(() => {})
+      await message.channel
+        .send(
+          `${message.author} has been timed out for 1 minute due to spam! You have been warned. (Warning ${userWarnings.length}) 🚫`,
+        )
+        .catch(() => {})
+
+      // Try to DM the user
+      try {
+        await message.author.send(
+          `⚠️ You have been warned in **${message.guild.name}**\n**Reason:** Spam (5+ messages in 5 seconds)\n**Total Warnings:** ${userWarnings.length}`,
+        )
+      } catch (error) {
+        // User has DMs disabled
+      }
+
       client.messageTracker.delete(userId)
     }
     return
   }
 
   // Command handling
-  if (!message.content.startsWith("!")) return
+  if (!startsWithPrefix) return
 
   const args = message.content.slice(1).trim().split(/ +/)
   const commandName = args.shift().toLowerCase()
@@ -316,7 +417,6 @@ client.on("messageCreate", async (message) => {
 
   // Permission check
   if (command.permissions) {
-    const member = message.guild.members.cache.get(message.author.id)
     if (!member.permissions.has(command.permissions)) {
       return message.reply("❌ You do not have permission to use this command!")
     }
@@ -350,6 +450,42 @@ client.on("messageCreate", async (message) => {
   } catch (error) {
     console.error(`Error executing ${command.name}:`, error)
     message.reply("❌ There was an error executing that command!").catch(() => {})
+  }
+})
+
+client.on("interactionCreate", async (interaction) => {
+  if (!interaction.isChatInputCommand()) return
+
+  const member = interaction.guild.members.cache.get(interaction.user.id)
+  const isStaffMember =
+    member &&
+    (member.permissions.has(PermissionFlagsBits.ModerateMembers) ||
+      member.permissions.has(PermissionFlagsBits.Administrator) ||
+      member.permissions.has(PermissionFlagsBits.ManageMessages) ||
+      member.permissions.has(PermissionFlagsBits.KickMembers) ||
+      member.permissions.has(PermissionFlagsBits.BanMembers))
+
+  if (isStaffMember) {
+    const logChannel = interaction.guild.channels.cache.find((ch) => ch.name === "admin-logs" || ch.name === "mod-logs")
+
+    if (logChannel) {
+      const { EmbedBuilder } = await import("discord.js")
+      const commandString = `/${interaction.commandName} ${interaction.options.data.map((opt) => `${opt.name}:${opt.value}`).join(" ")}`
+
+      const logEmbed = new EmbedBuilder()
+        .setColor("#FFA500")
+        .setTitle("🔧 Staff Slash Command Used")
+        .setDescription(`**${interaction.user.tag}** used a slash command`)
+        .addFields(
+          { name: "User", value: `${interaction.user} (${interaction.user.id})`, inline: true },
+          { name: "Channel", value: `${interaction.channel}`, inline: true },
+          { name: "Command", value: `\`${commandString}\``, inline: false },
+        )
+        .setTimestamp()
+        .setFooter({ text: `User ID: ${interaction.user.id}` })
+
+      await logChannel.send({ embeds: [logEmbed] }).catch(() => {})
+    }
   }
 })
 
