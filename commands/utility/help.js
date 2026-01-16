@@ -16,18 +16,19 @@ export default {
         .addFields(
           {
             name: "🛡️ Moderation",
-            value: "`!warn` `!kick` `!timeout` `!ban` `!warnings` `!setxp`",
+            value:
+              "`!warn` `!kick` `!timeout` `!removetimeout` `!ban` `!unban` `!softban` `!warnings` `!removewarn` `!setxp`",
           },
           {
             name: "🎮 Fun",
-            value: "`!8ball` `!roll` `!coinflip` `!joke` `!meme` `!say` `!riz` `!poll`",
+            value: "`!8ball` `!roll` `!coinflip` `!joke` `!dadjoke` `!meme` `!say` `!riz` `!choose` `!avatar`",
           },
           {
             name: "⚙️ Utility",
-            value: "`!help` `!ping` `!serverinfo` `!userinfo` `!rank` `!leaderboard`",
+            value: "`!help` `!ping` `!serverinfo` `!userinfo` `!rank` `!leaderboard` `!afk` `!credits`",
           },
         )
-        .setFooter({ text: "Use !help <command> for more info on a command" })
+        .setFooter({ text: "Use !help <command> for more info | Prefix: !" })
         .setTimestamp()
 
       return message.channel.send({ embeds: [embed] })
