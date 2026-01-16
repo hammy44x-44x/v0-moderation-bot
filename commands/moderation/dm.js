@@ -1,11 +1,16 @@
+const ALLOWED_USERS = [
+  "YOUR_USER_ID_HERE",
+  // Add more user IDs here
+]
+
 export default {
   name: "dm",
   description: "Send a direct message to a user as the bot",
   usage: "!dm <@user> <message>",
   cooldown: 10,
   async execute(message, args, client) {
-    if (!message.member.permissions.has("Administrator")) {
-      return message.reply("You need `Administrator` permission to use this command.")
+    if (!ALLOWED_USERS.includes(message.author.id)) {
+      return message.reply("You don't have permission to use this command.")
     }
 
     const target = message.mentions.users.first() || (await client.users.fetch(args[0]).catch(() => null))
